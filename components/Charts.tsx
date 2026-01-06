@@ -21,15 +21,15 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data, colors }) => {
   );
 
   return (
-    <div className="flex flex-col xl:flex-row items-center justify-center gap-8 py-2">
-      {/* Gráfico Donut */}
-      <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex-shrink-0">
-        <svg viewBox="0 0 100 100" className="transform -rotate-90 w-full h-full drop-shadow-[0_0_15px_rgba(0,0,0,0.4)]">
+    <div className="flex flex-col lg:flex-row items-center justify-center gap-10 py-4">
+      {/* Gráfico Donut - Container centralizado e com sombra suave */}
+      <div className="relative w-52 h-52 sm:w-64 sm:h-64 flex-shrink-0">
+        <svg viewBox="0 0 100 100" className="transform -rotate-90 w-full h-full drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]">
           {data.map((item, index) => {
             const percentage = item.value / total;
             const angle = percentage * 360;
             const largeArcFlag = percentage > 0.5 ? 1 : 0;
-            const r = 38;
+            const r = 40; // Raio ligeiramente maior
             const cx = 50; const cy = 50;
             
             const x1 = cx + r * Math.cos((Math.PI * accumulatedAngle) / 180);
@@ -44,45 +44,64 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data, colors }) => {
                 d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`} 
                 fill={colors[index % colors.length]} 
                 stroke="rgb(15, 23, 42)" 
-                strokeWidth="2.5"
-                className="transition-all duration-300 hover:opacity-80 cursor-pointer"
+                strokeWidth="3"
+                className="transition-all duration-500 hover:opacity-90 cursor-pointer"
               />
             );
           })}
-          <circle cx="50" cy="50" r="28" fill="rgb(15, 23, 42)" />
+          {/* Círculo interno para efeito de donut */}
+          <circle cx="50" cy="50" r="30" fill="rgb(15, 23, 42)" />
         </svg>
         
-        {/* Texto Central */}
+        {/* Texto Centralizado Profissional */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center bg-slate-900/60 backdrop-blur-md rounded-full w-24 h-24 flex flex-col items-center justify-center border border-white/10 shadow-inner">
-              <span className="block text-[7px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Total Gasto</span>
-              <span className="block text-[10px] sm:text-[11px] font-black text-white leading-tight px-2">{formatCurrency(total)}</span>
+          <div className="text-center flex flex-col items-center justify-center">
+              <span className="block text-[8px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">TOTAL</span>
+              <span className="block text-sm sm:text-base font-black text-white leading-tight px-4 border-y border-white/5 py-1">
+                {formatCurrency(total)}
+              </span>
           </div>
         </div>
       </div>
 
-      {/* Legenda Detalhada - Ajustada para não transbordar */}
-      <div className="w-full xl:flex-1 grid grid-cols-1 gap-2 max-w-md mx-auto xl:max-w-none">
+      {/* Legenda Lateral - Melhor alinhamento e design premium */}
+      <div className="w-full lg:flex-1 space-y-2.5 max-w-sm">
         {data.map((item, index) => {
           const percentage = ((item.value / total) * 100).toFixed(1);
           return (
-            <div key={index} className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-all group overflow-hidden">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div key={index} className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/50 border border-white/5 hover:border-white/10 hover:bg-white/[0.04] transition-all group">
+              <div className="flex items-center gap-4 min-w-0">
+                {/* Indicador de cor com brilho */}
                 <div 
-                  className="w-2.5 h-2.5 rounded-full flex-shrink-0" 
-                  style={{ backgroundColor: colors[index % colors.length] }} 
+                  className="w-3 h-3 rounded-full flex-shrink-0 shadow-[0_0_10px_rgba(0,0,0,0.5)]" 
+                  style={{ 
+                    backgroundColor: colors[index % colors.length],
+                    boxShadow: `0 0 12px ${colors[index % colors.length]}40`
+                  }} 
                 />
                 <div className="flex flex-col min-w-0">
-                  <span className="text-[10px] font-black text-slate-200 uppercase tracking-tight group-hover:text-white transition-colors truncate">
+                  <span className="text-[11px] font-black text-slate-200 uppercase tracking-wide truncate group-hover:text-white transition-colors">
                     {item.name}
                   </span>
-                  <span className="text-[8px] font-bold text-slate-500 uppercase whitespace-nowrap">
-                    {percentage}% do total
-                  </span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                      {percentage}%
+                    </span>
+                    {/* Barra de progresso miniatura */}
+                    <div className="w-12 h-1 bg-slate-800 rounded-full overflow-hidden hidden sm:block">
+                      <div 
+                        className="h-full transition-all duration-1000" 
+                        style={{ 
+                          width: `${percentage}%`,
+                          backgroundColor: colors[index % colors.length]
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="text-right pl-3 flex-shrink-0">
-                <span className="text-[10px] sm:text-[11px] font-black text-slate-300 group-hover:text-emerald-400 transition-colors whitespace-nowrap">
+              <div className="text-right pl-4">
+                <span className="text-xs font-mono font-black text-slate-300 group-hover:text-emerald-400 transition-colors">
                   {formatCurrency(item.value)}
                 </span>
               </div>

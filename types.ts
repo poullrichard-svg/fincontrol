@@ -9,7 +9,7 @@ export interface Transaction {
   amount: number;
   type: TransactionType;
   category: string;
-  paymentMethod?: string;
+  payment_method?: string;
   date?: string;
   isFixed?: boolean;
   createdAt?: any;
