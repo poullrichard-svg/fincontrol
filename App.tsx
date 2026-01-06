@@ -937,7 +937,7 @@ export default function App() {
                                   <label className="text-[10px] font-black text-slate-500 uppercase ml-1">
                                     {driverInputs.vehicleType === 'financed' ? 'PARCELA' : 'KM RODADOS (MÊS)'}
                                   </label>
-                                  <input type="text" value={driverInputs.vehicleType === 'financed' ? formatDisplayAmount(driverInputs.installmentRaw) : driverInputs.monthlyKmRaw} onChange={(e) => handleDriverInputChange('installmentRaw', e.target.value) : handleDriverInputChange('monthlyKmRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" />
+                                  <input type="text" value={driverInputs.vehicleType === 'financed' ? formatDisplayAmount(driverInputs.installmentRaw) : driverInputs.monthlyKmRaw} onChange={(e) => driverInputs.vehicleType === 'financed' ? handleDriverInputChange('installmentRaw', e.target.value) : handleDriverInputChange('monthlyKmRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" />
                                 </div>
                               </div>
 
@@ -983,15 +983,15 @@ export default function App() {
 
                               {calcType === 'million' && (
                                 <div className="grid grid-cols-2 gap-4">
-                                  <button onClick={() => setCalcInputs(p => ({...p, millionMode: 'term'}))} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${calcInputs.millionMode === 'term' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/5 text-slate-500'}`}>Calcular Prazo</button>
-                                  <button onClick={() => setCalcInputs(p => ({...p, millionMode: 'amount'}))} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${calcInputs.millionMode === 'amount' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/5 text-slate-500'}`}>Calcular Aporte</button>
+                                  <button onClick={() => setCalcInputs(p => ({...p, millionMode: 'term'}))} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${calcInputs.millionMode === 'term' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>Calcular Prazo</button>
+                                  <button onClick={() => setCalcInputs(p => ({...p, millionMode: 'amount'}))} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${calcInputs.millionMode === 'amount' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>Calcular Aporte</button>
                                 </div>
                               )}
 
                               {calcType === 'emergency' && (
                                 <div className="grid grid-cols-3 gap-3">
                                   {['clt', 'autonomo', 'publico'].map(et => (
-                                    <button key={et} onClick={() => setCalcInputs(p => ({...p, employmentType: et, coverageMonths: et === 'clt' ? 6 : et === 'autonomo' ? 12 : 3}))} className={`py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest border-2 transition-all ${calcInputs.employmentType === et ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5' : 'border-white/5 text-slate-500'}`}>{et === 'clt' ? 'CLT' : et === 'autonomo' ? 'AUTÔNOMO' : 'PÚBLICO'}</button>
+                                    <button key={et} onClick={() => setCalcInputs(p => ({...p, employmentType: et, coverageMonths: et === 'clt' ? 6 : et === 'autonomo' ? 12 : 3}))} className={`py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest border-2 transition-all ${calcInputs.employmentType === et ? 'border-emerald-500 text-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>{et === 'clt' ? 'CLT' : et === 'autonomo' ? 'AUTÔNOMO' : 'PÚBLICO'}</button>
                                   ))}
                                 </div>
                               )}
