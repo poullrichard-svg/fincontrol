@@ -1,6 +1,7 @@
 
 export type TransactionType = 'income' | 'expense';
 export type GoalType = 'financial' | 'activity';
+export type DriverApp = 'Uber' | '99' | 'InDrive' | 'Particular';
 
 export interface Transaction {
   id: string;
@@ -13,6 +14,31 @@ export interface Transaction {
   isFixed?: boolean;
   createdAt?: any;
   dateObj?: Date;
+}
+
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string; // UN, KG, L, etc.
+  estimatedPrice: number;
+  completed: boolean;
+  createdAt?: any;
+}
+
+export interface DriverSession {
+  id: string;
+  date: string;
+  app: DriverApp;
+  amount: number;
+  trips: number;
+  kmDriven: number;
+  hoursWorked: string; // HH:mm
+  fuelSpent: number;
+  foodSpent: number;
+  fuelConsumption: number;
+  observation?: string;
+  createdAt?: any;
 }
 
 export interface Goal {
