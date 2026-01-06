@@ -254,7 +254,7 @@ export default function App() {
               const fvInitial = initial * factor;
               const annuityFactor = monthlyRate === 0 ? totalMonths : (factor - 1) / monthlyRate;
               const needed = (target - fvInitial) / annuityFactor;
-              setCalcResult({ neededAmount: round(Math.max(0, needed)), total: target });
+              setCalcResult({ neededAmount: round(Math.max(0, needed)), total: target, invested: initial });
           }
       } else if (calcType === 'driver') {
         const value = parseInt(driverInputs.vehicleValueRaw || '0') / 100;
@@ -270,17 +270,15 @@ export default function App() {
         const desiredProfit = parseInt(driverInputs.desiredProfitRaw || '0') / 100;
         const deprPerc = parseFloat(driverInputs.depreciationPercent || '0') / 100;
 
-        // Custos Fixos Mensais
         const isRented = driverInputs.vehicleType === 'rented';
         const isOwned = driverInputs.vehicleType === 'owned';
         
         const ipvaMonthly = isRented ? 0 : (value * 0.04) / 12;
         const depreciationMonthly = isRented ? 0 : (value * deprPerc) / 12;
-        const insuranceMonthly = isRented ? 0 : insurance; // Aluguel não paga seguro
+        const insuranceMonthly = isRented ? 0 : insurance; 
         const vehicleBaseCost = isOwned ? 0 : installment; 
         const totalFixedMonthly = vehicleBaseCost + ipvaMonthly + insuranceMonthly + depreciationMonthly;
 
-        // Custos Variáveis por KM
         const skipMaint = isRented && driverInputs.maintenanceIncluded;
         const fuelCostKm = fuelPrice / Math.max(1, fuelConsumption);
         const tireCostKm = skipMaint ? 0 : tireCost / Math.max(1, tireLife);
