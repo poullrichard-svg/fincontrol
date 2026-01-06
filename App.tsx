@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Repeat, Calculator, Coins, Target, ShieldCheck, Briefcase,
   UserCheck, Zap, Flag, CheckCircle2, Trophy, Activity, Car, Fuel, Info, Wrench, Ban,
   Clock, MapPin, CircleUser, Utensils, CalendarDays, ShoppingCart, CheckSquare, Square,
-  Scale, Edit3, Check, LogOut, Mail, Lock, UserPlus, LogIn
+  Scale, Edit3, Check, LogOut, Mail, Lock, UserPlus, LogIn, Download
 } from 'lucide-react';
 import { createClient, User } from '@supabase/supabase-js';
 
@@ -42,10 +42,11 @@ export default function App() {
   const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
   const [isContributionModalOpen, setIsContributionModalOpen] = useState(false);
   
-  // Selection
+  // Selection & Editing
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedDay, setSelectedDay] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   
   // Form helpers
   const [formType, setFormType] = useState<'expense' | 'income'>('expense');
@@ -73,8 +74,8 @@ export default function App() {
   
   const [driverInputs, setDriverInputs] = useState<DriverInputs>({
     vehicleType: 'financed', vehicleValueRaw: '4800000', installmentRaw: '148000',
-    depreciationPercent: '10', monthlyKmRaw: '7000', insuranceRaw: '20000',
-    tireCostRaw: '120000', tireLifeRaw: '50000', oilCostRaw: '23600',
+    depreciationPercent: '10', monthlyKmRaw: '5000', insuranceRaw: '35000', ipvaRaw: '192000',
+    tireCostRaw: '160000', tireLifeRaw: '50000', oilCostRaw: '25000',
     oilIntervalRaw: '10000', fuelPriceRaw: '589', fuelConsumptionRaw: '10',
     desiredProfitRaw: '500000', maintenanceIncluded: true
   });
@@ -86,7 +87,6 @@ export default function App() {
     console.error(`Erro ao ${action}:`, err);
     let message = err.message || "Erro desconhecido. Verifique sua conexão.";
     
-    // Tratamento específico para o erro PGRST204 (coluna faltando no cache)
     if (err.code === 'PGRST204') {
       message = `O banco de dados precisa ser atualizado. A coluna 'payment_method' não foi encontrada. Por favor, execute o comando SQL no painel do Supabase conforme as instruções recebidas.`;
     }
@@ -130,62 +130,62 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const fetchAllData = useCallback(async () => {
+    if (!user) return;
+    const [{ data: t }, { data: f }, { data: g }, { data: d }, { data: s }] = await Promise.all([
+      supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+      supabase.from('fixed_transactions').select('*').eq('user_id', user.id),
+      supabase.from('goals').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('driver_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+      supabase.from('shopping_items').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    ]);
+
+    setTransactions(t?.map(i => ({...i, dateObj: i.date ? new Date(i.date + 'T00:00:00') : new Date()})) || []);
+    setFixedTransactions(f?.map(i => ({...i, isFixed: true})) || []);
+    setGoals(g?.map(i => ({
+      id: i.id,
+      description: i.description,
+      targetAmount: i.target_amount,
+      currentAmount: i.current_amount,
+      type: i.type,
+      deadline: i.deadline,
+      createdAt: i.created_at
+    })) || []);
+    setDriverSessions(d?.map(i => ({
+      id: i.id,
+      date: i.date,
+      app: i.app,
+      amount: i.amount,
+      trips: i.trips,
+      kmDriven: i.km_driven,
+      hoursWorked: i.hours_worked,
+      fuelSpent: i.fuel_spent,
+      foodSpent: i.food_spent,
+      fuelConsumption: i.fuel_consumption,
+      observation: i.observation,
+      createdAt: i.created_at
+    })) || []);
+    setShoppingList(s?.map(i => ({
+      id: i.id,
+      name: i.name,
+      quantity: i.quantity,
+      unit: i.unit,
+      estimatedPrice: i.estimated_price,
+      completed: i.completed,
+      createdAt: i.created_at
+    })) || []);
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
-
-    const fetchAll = async () => {
-      const [{ data: t }, { data: f }, { data: g }, { data: d }, { data: s }] = await Promise.all([
-        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
-        supabase.from('fixed_transactions').select('*').eq('user_id', user.id),
-        supabase.from('goals').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('driver_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
-        supabase.from('shopping_items').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
-      ]);
-
-      setTransactions(t?.map(i => ({...i, dateObj: i.date ? new Date(i.date + 'T00:00:00') : new Date()})) || []);
-      setFixedTransactions(f?.map(i => ({...i, isFixed: true})) || []);
-      setGoals(g?.map(i => ({
-        id: i.id,
-        description: i.description,
-        targetAmount: i.target_amount,
-        currentAmount: i.current_amount,
-        type: i.type,
-        deadline: i.deadline,
-        createdAt: i.created_at
-      })) || []);
-      setDriverSessions(d?.map(i => ({
-        id: i.id,
-        date: i.date,
-        app: i.app,
-        amount: i.amount,
-        trips: i.trips,
-        kmDriven: i.km_driven,
-        hoursWorked: i.hours_worked,
-        fuelSpent: i.fuel_spent,
-        foodSpent: i.food_spent,
-        fuelConsumption: i.fuel_consumption,
-        observation: i.observation,
-        createdAt: i.created_at
-      })) || []);
-      setShoppingList(s?.map(i => ({
-        id: i.id,
-        name: i.name,
-        quantity: i.quantity,
-        unit: i.unit,
-        estimatedPrice: i.estimated_price,
-        completed: i.completed,
-        createdAt: i.created_at
-      })) || []);
-    };
-
-    fetchAll();
+    fetchAllData();
 
     const channels = [
-      supabase.channel('db-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` }, fetchAll),
-      supabase.channel('db-changes-fixed').on('postgres_changes', { event: '*', schema: 'public', table: 'fixed_transactions', filter: `user_id=eq.${user.id}` }, fetchAll),
-      supabase.channel('db-changes-goals').on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, fetchAll),
-      supabase.channel('db-changes-driver').on('postgres_changes', { event: '*', schema: 'public', table: 'driver_sessions', filter: `user_id=eq.${user.id}` }, fetchAll),
-      supabase.channel('db-changes-shopping').on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items', filter: `user_id=eq.${user.id}` }, fetchAll)
+      supabase.channel('db-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` }, fetchAllData),
+      supabase.channel('db-changes-fixed').on('postgres_changes', { event: '*', schema: 'public', table: 'fixed_transactions', filter: `user_id=eq.${user.id}` }, fetchAllData),
+      supabase.channel('db-changes-goals').on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, fetchAllData),
+      supabase.channel('db-changes-driver').on('postgres_changes', { event: '*', schema: 'public', table: 'driver_sessions', filter: `user_id=eq.${user.id}` }, fetchAllData),
+      supabase.channel('db-changes-shopping').on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items', filter: `user_id=eq.${user.id}` }, fetchAllData)
     ];
 
     channels.forEach(channel => channel.subscribe());
@@ -193,9 +193,17 @@ export default function App() {
     return () => {
       channels.forEach(channel => supabase.removeChannel(channel));
     };
-  }, [user]);
+  }, [user, fetchAllData]);
 
   // --- CRUD Handlers ---
+  const handleOpenEditModal = (t: Transaction) => {
+    setEditingTransaction(t);
+    setIsFixedForm(!!t.isFixed);
+    setFormType(t.type);
+    setAmountRaw((t.amount * 100).toFixed(0));
+    setIsModalOpen(true);
+  };
+
   const handleAddTransaction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); 
     if (!user) return;
@@ -210,31 +218,32 @@ export default function App() {
     const date = formData.get('date')?.toString() || new Date().toISOString().split('T')[0];
 
     try {
-      if (isFixedForm) {
-        const payload = {
-          user_id: user.id,
-          description,
-          amount: round(amount),
-          type: formType,
-          category
-        };
-        const { error } = await supabase.from('fixed_transactions').insert([payload]);
+      const table = isFixedForm ? 'fixed_transactions' : 'transactions';
+      const payload: any = {
+        user_id: user.id,
+        description,
+        amount: round(amount),
+        type: formType,
+        category
+      };
+
+      if (!isFixedForm) {
+        payload.payment_method = paymentMethod;
+        payload.date = date;
+      }
+
+      if (editingTransaction) {
+        const { error } = await supabase.from(table).update(payload).eq('id', editingTransaction.id);
         if (error) throw error;
       } else {
-        const payload = {
-          user_id: user.id,
-          description,
-          amount: round(amount),
-          type: formType,
-          category,
-          payment_method: paymentMethod,
-          date
-        };
-        const { error } = await supabase.from('transactions').insert([payload]);
+        const { error } = await supabase.from(table).insert([payload]);
         if (error) throw error;
       }
+      
       setIsModalOpen(false); 
       setAmountRaw('');
+      setEditingTransaction(null);
+      fetchAllData(); 
     } catch (err: any) {
       handleAppError(err, "salvar o lançamento");
     }
@@ -264,7 +273,6 @@ export default function App() {
     };
 
     try {
-      // Tenta salvar a sessão do motorista
       const { error: sessionError } = await supabase.from('driver_sessions').insert([sessionData]);
       if (sessionError) throw sessionError;
 
@@ -303,12 +311,12 @@ export default function App() {
         });
       }
 
-      // Tenta sincronizar com o extrato geral
       const { error: ledgerError } = await supabase.from('transactions').insert(ledgerEntries);
       if (ledgerError) throw ledgerError;
 
       setIsDriverModalOpen(false); 
       setAmountRaw(''); setFuelRaw(''); setFoodRaw(''); setKmRaw(''); setTripsRaw('');
+      fetchAllData();
     } catch (err: any) {
       handleAppError(err, "registrar a sessão de ganhos");
     }
@@ -331,6 +339,7 @@ export default function App() {
       }]);
       if (error) throw error;
       setIsGoalModalOpen(false); setAmountRaw('');
+      fetchAllData();
     } catch (err: any) {
       handleAppError(err, "criar a meta");
     }
@@ -347,6 +356,7 @@ export default function App() {
       }).eq('id', selectedGoal.id);
       if (error) throw error;
       setIsContributionModalOpen(false); setAmountRaw('');
+      fetchAllData();
     } catch (err: any) {
       handleAppError(err, "registrar o aporte");
     }
@@ -368,6 +378,7 @@ export default function App() {
       }]);
       if (error) throw error;
       setIsShoppingModalOpen(false); setAmountRaw('');
+      fetchAllData();
     } catch (err: any) {
       handleAppError(err, "adicionar item à lista");
     }
@@ -375,28 +386,52 @@ export default function App() {
 
   const toggleShoppingItem = async (item: ShoppingItem) => {
     await supabase.from('shopping_items').update({ completed: !item.completed }).eq('id', item.id);
+    fetchAllData();
   };
 
   const updateShoppingItemPrice = async (itemId: string, newPrice: number) => {
     await supabase.from('shopping_items').update({ estimated_price: newPrice }).eq('id', itemId);
     setEditingPriceId(null); setInlinePriceRaw('');
+    fetchAllData();
   };
 
   const deleteShoppingItem = async (id: string) => {
     await supabase.from('shopping_items').delete().eq('id', id);
+    fetchAllData();
   };
 
   const confirmDeleteTransaction = async () => {
     if (!transactionToDelete || !user) return;
-    const table = activeTab === 'fixed' ? 'fixed_transactions' : 'transactions';
-    await supabase.from(table).delete().eq('id', transactionToDelete);
-    setTransactionToDelete(null);
+    const isFixed = fixedTransactions.some(ft => ft.id === transactionToDelete);
+    const table = isFixed ? 'fixed_transactions' : 'transactions';
+    
+    try {
+      const { error } = await supabase.from(table).delete().eq('id', transactionToDelete);
+      if (error) throw error;
+      
+      if (isFixed) {
+        setFixedTransactions(prev => prev.filter(t => t.id !== transactionToDelete));
+      } else {
+        setTransactions(prev => prev.filter(t => t.id !== transactionToDelete));
+      }
+    } catch (err: any) {
+      handleAppError(err, "excluir o lançamento");
+    } finally {
+      setTransactionToDelete(null);
+    }
   };
 
   const confirmDeleteGoal = async () => {
     if (!goalToDelete) return;
-    await supabase.from('goals').delete().eq('id', goalToDelete);
-    setGoalToDelete(null);
+    try {
+      const { error } = await supabase.from('goals').delete().eq('id', goalToDelete);
+      if (error) throw error;
+      setGoals(prev => prev.filter(g => g.id !== goalToDelete));
+    } catch (err: any) {
+      handleAppError(err, "excluir a meta");
+    } finally {
+      setGoalToDelete(null);
+    }
   };
 
   // --- Memos ---
@@ -564,30 +599,47 @@ export default function App() {
           }
       } else if (calcType === 'driver') {
           const carVal = parseInt(driverInputs.vehicleValueRaw || '0') / 100; 
-          const inst = parseInt(driverInputs.installmentRaw || '0') / 100; 
-          const insurance = parseInt(driverInputs.insuranceRaw || '0') / 100; 
           const mKm = parseInt(driverInputs.monthlyKmRaw || '1'); 
           const fuelPrice = parseInt(driverInputs.fuelPriceRaw || '0') / 100; 
           const fuelCons = parseFloat(driverInputs.fuelConsumptionRaw || '10'); 
           const dProfit = parseInt(driverInputs.desiredProfitRaw || '0') / 100;
-          const tirePrice = parseInt(driverInputs.tireCostRaw || '0') / 100;
+          
+          const annualIpva = parseInt(driverInputs.ipvaRaw || '0') / 100;
+          const monthlyInsurance = parseInt(driverInputs.insuranceRaw || '0') / 100;
+          const tireSetPrice = parseInt(driverInputs.tireCostRaw || '0') / 100;
           const oilPrice = parseInt(driverInputs.oilCostRaw || '0') / 100;
-          let fixedM = 0;
+          const oilInterval = parseFloat(driverInputs.oilIntervalRaw || '10000');
+          const installment = parseInt(driverInputs.installmentRaw || '0') / 100;
+
+          let fixedMonthlyCosts = 0;
           if (driverInputs.vehicleType === 'financed') {
-            fixedM = inst + (carVal * 0.04 / 12);
+            fixedMonthlyCosts = installment + (annualIpva / 12) + monthlyInsurance;
           } else if (driverInputs.vehicleType === 'rented') {
-            fixedM = inst;
+            fixedMonthlyCosts = installment;
           } else {
-            fixedM = (carVal * 0.04 / 12);
+            fixedMonthlyCosts = (annualIpva / 12) + monthlyInsurance + (carVal * 0.01); // 1% provision for maintenance on owned car
           }
-          const showMaint = driverInputs.vehicleType !== 'rented' || !driverInputs.maintenanceIncluded;
-          const tireKm = showMaint ? (tirePrice / 50000) : 0;
-          const oilKm = showMaint ? (oilPrice / 10000) : 0;
-          const fuelKm = fuelPrice / Math.max(0.1, fuelCons);
-          const totalCostKm = (fixedM / Math.max(1, mKm)) + tireKm + oilKm + fuelKm;
-          const minRatePerKm = (dProfit / Math.max(1, mKm)) + totalCostKm;
-          const totalMonthlyCost = fixedM + (mKm * (tireKm + oilKm + fuelKm));
-          setCalcResult({ total: dProfit, target: dProfit, monthlyCost: totalMonthlyCost, costPerKm: round(totalCostKm), minRatePerKm: round(minRatePerKm) });
+
+          // Variable maintenance costs
+          // Jogo de pneu dura em média um ano
+          const tireMonthlyCost = (driverInputs.vehicleType !== 'rented' || !driverInputs.maintenanceIncluded) ? (tireSetPrice / 12) : 0;
+          // Troca de óleo a cada 10 mil KM
+          const oilMonthlyCost = (driverInputs.vehicleType !== 'rented' || !driverInputs.maintenanceIncluded) ? (oilPrice / (oilInterval / Math.max(1, mKm))) : 0;
+          
+          // Consumption cost
+          const fuelKmCost = fuelPrice / Math.max(0.1, fuelCons);
+
+          const totalMonthlyExpenses = fixedMonthlyCosts + tireMonthlyCost + oilMonthlyCost + (mKm * fuelKmCost);
+          const costPerKm = totalMonthlyExpenses / Math.max(1, mKm);
+          const minRatePerKm = (totalMonthlyExpenses + dProfit) / Math.max(1, mKm);
+          
+          setCalcResult({ 
+            total: dProfit, 
+            target: dProfit, 
+            monthlyCost: totalMonthlyExpenses, 
+            costPerKm: round(costPerKm), 
+            minRatePerKm: round(minRatePerKm) 
+          });
       }
   }, [calcInputs, calcType, driverInputs]);
 
@@ -703,9 +755,18 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="p-6 mt-auto">
-          <button onClick={handleLogout} className="flex items-center gap-4 w-full px-4 py-4 rounded-2xl text-rose-500 hover:bg-rose-500/10 transition-all font-bold">
-            <LogOut size={18} /><span>Sair da Conta</span>
+        <div className="p-6 mt-auto space-y-4">
+          <div className="bg-slate-900/50 border border-white/5 p-4 rounded-2xl flex items-center gap-3 group hover:border-emerald-500/20 transition-all">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
+              <CircleUser size={20} />
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Sua Conta</p>
+              <p className="text-xs font-bold text-slate-200 truncate">{user?.email}</p>
+            </div>
+          </div>
+          <button onClick={handleLogout} className="flex items-center gap-4 w-full px-4 py-4 rounded-2xl text-rose-500 hover:bg-rose-500/10 transition-all font-bold group">
+            <LogOut size={18} className="group-hover:rotate-12 transition-transform" /><span>Sair da Conta</span>
           </button>
         </div>
       </aside>
@@ -723,6 +784,7 @@ export default function App() {
             </div>
             <button onClick={() => { 
                 setAmountRaw(''); 
+                setEditingTransaction(null);
                 setIsFixedForm(activeTab === 'fixed');
                 if (activeTab === 'goals') setIsGoalModalOpen(true); 
                 else if (activeTab === 'driver-panel') setIsDriverModalOpen(true); 
@@ -768,59 +830,59 @@ export default function App() {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="bg-[#10b981] p-10 rounded-[2.5rem] shadow-2xl shadow-[#10b981]/10 text-center flex flex-col items-center justify-center min-h-[180px]">
-                        <span className="text-[10px] font-black text-emerald-950/60 uppercase block mb-3 tracking-widest">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                      <div className="bg-gradient-to-br from-emerald-600 to-emerald-400 p-6 md:p-10 rounded-[2.5rem] shadow-xl shadow-emerald-950/20 text-center flex flex-col items-center justify-center min-h-[140px] md:min-h-[180px] transition-all hover:scale-[1.02]">
+                        <span className="text-[9px] md:text-[10px] font-black text-emerald-950/60 uppercase block mb-2 md:mb-3 tracking-widest">
                           {driverTimeframe === 'diario' ? 'FATURAMENTO DIÁRIO' : 'FATURAMENTO MENSAL'}
                         </span>
-                        <h3 className="text-4xl lg:text-5xl font-black text-white tracking-tighter">
+                        <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tighter drop-shadow-sm">
                           {formatCurrency(driverStats.totalAmount)}
                         </h3>
                       </div>
-                      <div className="bg-[#ef4444] p-10 rounded-[2.5rem] shadow-2xl shadow-[#ef4444]/10 text-center flex flex-col items-center justify-center min-h-[180px]">
-                        <span className="text-[10px] font-black text-rose-950/60 uppercase block mb-3 tracking-widest">GASTOS</span>
-                        <h3 className="text-4xl lg:text-5xl font-black text-white tracking-tighter">
+                      <div className="bg-gradient-to-br from-rose-600 to-rose-400 p-6 md:p-10 rounded-[2.5rem] shadow-xl shadow-rose-950/20 text-center flex flex-col items-center justify-center min-h-[140px] md:min-h-[180px] transition-all hover:scale-[1.02]">
+                        <span className="text-[9px] md:text-[10px] font-black text-rose-950/60 uppercase block mb-2 md:mb-3 tracking-widest">GASTOS TOTAIS</span>
+                        <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tighter drop-shadow-sm">
                           {formatCurrency(driverStats.totalCost)}
                         </h3>
                       </div>
-                      <div className="bg-[#6366f1] p-10 rounded-[2.5rem] shadow-2xl shadow-[#6366f1]/10 text-center flex flex-col items-center justify-center min-h-[180px]">
-                        <span className="text-[10px] font-black text-indigo-950/60 uppercase block mb-3 tracking-widest">SALDO LÍQUIDO</span>
-                        <h3 className="text-4xl lg:text-5xl font-black text-white tracking-tighter">
+                      <div className="bg-gradient-to-br from-indigo-600 to-indigo-400 p-6 md:p-10 rounded-[2.5rem] shadow-xl shadow-indigo-950/20 text-center flex flex-col items-center justify-center min-h-[140px] md:min-h-[180px] transition-all hover:scale-[1.02]">
+                        <span className="text-[9px] md:text-[10px] font-black text-indigo-950/60 uppercase block mb-2 md:mb-3 tracking-widest">SALDO LÍQUIDO</span>
+                        <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tighter drop-shadow-sm">
                           {formatCurrency(driverStats.netProfit)}
                         </h3>
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                       {driverMetrics.map((m, i) => (
-                        <div key={i} className="bg-slate-900/40 border border-white/5 p-8 rounded-[2rem] flex flex-col items-center justify-center text-center gap-3 transition-colors hover:bg-slate-800/40">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{m.label}</span>
-                          <span className="text-2xl font-black text-white">{m.value}</span>
+                        <div key={i} className="bg-slate-900/40 border border-white/5 p-4 md:p-8 rounded-[1.5rem] md:rounded-[2rem] flex flex-col items-center justify-center text-center gap-1.5 md:gap-3 transition-colors hover:bg-slate-800/40">
+                          <span className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest leading-tight">{m.label}</span>
+                          <span className="text-lg md:text-2xl font-black text-white truncate w-full">{m.value}</span>
                         </div>
                       ))}
                     </div>
 
-                    <div className="bg-[#0b1120] border border-white/5 rounded-[3.5rem] p-10 md:p-12 space-y-12 shadow-2xl overflow-hidden">
+                    <div className="bg-[#0b1120] border border-white/5 rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-12 space-y-8 md:space-y-12 shadow-2xl overflow-hidden">
                         <div className="flex items-center justify-center">
-                           <div className="bg-slate-900/60 border border-emerald-500/20 px-10 py-3.5 rounded-full">
-                             <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.4em]">FATURAMENTO POR APLICATIVO</span>
+                           <div className="bg-slate-900/60 border border-emerald-500/20 px-6 md:px-10 py-2.5 md:py-3.5 rounded-full">
+                             <span className="text-[8px] md:text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] md:tracking-[0.4em]">FATURAMENTO POR APLICATIVO</span>
                            </div>
                         </div>
-                        <div className="space-y-4 max-w-5xl mx-auto">
+                        <div className="space-y-3 md:space-y-4 max-w-5xl mx-auto">
                             {[
                                 { id: '99', label: '99', color: 'bg-amber-500', icon: CircleUser, amount: driverStats.appBreakdown['99'] },
                                 { id: 'uber', label: 'Uber', color: 'bg-[#020617]', icon: CircleUser, amount: driverStats.appBreakdown['Uber'] },
                                 { id: 'indrive', label: 'InDrive', color: 'bg-indigo-500', icon: CircleUser, amount: driverStats.appBreakdown['InDrive'] },
                                 { id: 'particular', label: 'Particular', color: 'bg-blue-600', icon: CircleUser, amount: driverStats.appBreakdown['Particular'] }
                             ].map(app => (
-                                <div key={app.id} className="bg-[#020617]/50 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between hover:bg-white/[0.03] transition-all group">
-                                    <div className="flex items-center gap-6">
-                                        <div className={`${app.color} w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-xl border border-white/10`}>
-                                            <app.icon size={24} />
+                                <div key={app.id} className="bg-[#020617]/50 border border-white/5 p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-between hover:bg-white/[0.03] transition-all group">
+                                    <div className="flex items-center gap-3 md:gap-6">
+                                        <div className={`${app.color} w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-xl border border-white/10`}>
+                                            <app.icon size={20} className="md:w-6 md:h-6" />
                                         </div>
-                                        <span className="text-xl font-black text-white uppercase tracking-tight">{app.label}</span>
+                                        <span className="text-sm md:text-xl font-black text-white uppercase tracking-tight">{app.label}</span>
                                     </div>
-                                    <span className="text-2xl font-black text-slate-100 font-mono tracking-tight">
+                                    <span className="text-lg md:text-2xl font-black text-slate-100 font-mono tracking-tight">
                                         {formatCurrency(app.amount)}
                                     </span>
                                 </div>
@@ -831,36 +893,83 @@ export default function App() {
                 )}
 
                 {activeTab === 'shopping' && (
-                  <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="bg-[#0b1120]/60 border border-white/5 p-8 rounded-[2.5rem] shadow-2xl flex flex-col items-center justify-center text-center">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">GASTO PLANEJADO</span>
-                        <h3 className="text-4xl lg:text-5xl font-black text-white tracking-tighter">{formatCurrency(shoppingTotal)}</h3>
+                  <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto px-2">
+                    {/* Shopping Stats Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                      <div className="bg-gradient-to-br from-emerald-600/80 to-emerald-400/80 border border-emerald-400/20 p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] shadow-xl flex flex-col items-center justify-center text-center backdrop-blur-md">
+                        <span className="text-[9px] md:text-[10px] font-black text-emerald-950/60 uppercase tracking-widest mb-2 md:mb-3">GASTO PLANEJADO TOTAL</span>
+                        <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tighter drop-shadow-sm">{formatCurrency(shoppingTotal)}</h3>
                       </div>
-                      <div className="bg-[#0b1120]/60 border border-white/5 p-8 rounded-[2.5rem] shadow-2xl flex flex-col items-center justify-center text-center">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">ITENS NA LISTA</span>
-                        <h3 className="text-4xl lg:text-5xl font-black text-emerald-400 tracking-tighter">{shoppingList.length} itens</h3>
+                      <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-white/5 p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] shadow-xl flex flex-col items-center justify-center text-center">
+                        <span className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 md:mb-3">ITENS NA LISTA</span>
+                        <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tighter">{shoppingList.length} itens</h3>
                       </div>
                     </div>
-                    <div className="bg-[#0b1120]/40 border border-white/5 rounded-[3.5rem] shadow-2xl overflow-hidden">
-                      <div className="p-8 px-10 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <h3 className="text-xl font-black text-white uppercase tracking-tight">CHECKLIST DE COMPRAS</h3>
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">DICA: CLIQUE NO PREÇO PARA ALTERAR</p>
+
+                    <div className="bg-[#0b1120]/40 border border-white/5 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl overflow-hidden backdrop-blur-sm">
+                      <div className="p-6 md:p-8 px-6 md:px-10 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
+                            <CheckSquare size={20} />
+                          </div>
+                          <h3 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">CHECKLIST DE COMPRAS</h3>
+                        </div>
+                        <p className="text-[8px] md:text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] bg-slate-900/60 px-4 py-1.5 rounded-full border border-white/5">DICA: CLIQUE NO PREÇO PARA ALTERAR</p>
                       </div>
-                      <div className="p-6 md:p-8 space-y-4">
-                        {shoppingList.map(item => (
-                          <div key={item.id} className={`bg-[#020617]/40 border border-white/5 p-6 rounded-[2.5rem] flex items-center justify-between group hover:bg-white/[0.02] transition-all gap-4 ${item.completed ? 'opacity-40' : ''}`}>
-                            <div className="flex items-center gap-6 flex-1 min-w-0">
-                              <button onClick={() => toggleShoppingItem(item)} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border-2 ${item.completed ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500' : 'bg-slate-800/50 border-white/10 text-slate-500 hover:border-white/20'}`}>{item.completed ? <CheckSquare size={24} /> : <Square size={24} />}</button>
-                              <div className="truncate"><p className={`font-black text-xl lg:text-2xl text-white truncate ${item.completed ? 'line-through opacity-50' : ''}`}>{item.name}</p><p className="text-[11px] font-black text-slate-500 uppercase flex items-center gap-2 mt-1"><Scale size={12} /> {item.quantity} {item.unit}</p></div>
+                      
+                      <div className="p-4 md:p-8 space-y-3">
+                        {shoppingList.length === 0 ? (
+                          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+                            <ShoppingCart size={48} strokeWidth={1} />
+                            <p className="text-[10px] font-black uppercase tracking-widest">Sua lista está vazia</p>
+                          </div>
+                        ) : shoppingList.map(item => (
+                          <div key={item.id} className={`bg-[#020617]/40 border border-white/5 p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-between group hover:bg-white/[0.03] transition-all gap-3 md:gap-6 ${item.completed ? 'opacity-40 grayscale-[0.5]' : ''}`}>
+                            <div className="flex items-center gap-3 md:gap-6 flex-1 min-w-0">
+                              <button 
+                                onClick={() => toggleShoppingItem(item)} 
+                                className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex-shrink-0 flex items-center justify-center transition-all border-2 ${item.completed ? 'bg-emerald-500 border-emerald-500 text-slate-950' : 'bg-slate-900 border-white/10 text-slate-700 hover:border-white/20'}`}
+                              >
+                                {item.completed ? <Check size={24} strokeWidth={4} /> : <Square size={24} />}
+                              </button>
+                              <div className="truncate flex-1">
+                                <p className={`font-black text-base md:text-xl lg:text-2xl text-white truncate leading-tight ${item.completed ? 'line-through opacity-50' : ''}`}>{item.name}</p>
+                                <div className="flex items-center gap-2 mt-1 md:mt-1.5">
+                                  <span className="text-[9px] md:text-[11px] font-black text-slate-500 uppercase flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-0.5 rounded-lg border border-white/5">
+                                    <Scale size={10} /> {item.quantity} {item.unit}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-4 flex-shrink-0">
+
+                            <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
                               {editingPriceId === item.id ? (
-                                <div className="flex items-center gap-2"><input autoFocus type="text" value={formatDisplayAmount(inlinePriceRaw)} onChange={(e) => setInlinePriceRaw(e.target.value.replace(/\D/g, ""))} onBlur={() => updateShoppingItemPrice(item.id, inlinePriceRaw ? parseFloat(inlinePriceRaw)/100 : 0)} onKeyDown={(e) => { if (e.key === 'Enter') updateShoppingItemPrice(item.id, inlinePriceRaw ? parseFloat(inlinePriceRaw)/100 : 0); }} className="w-32 bg-slate-900 border-2 border-emerald-500 rounded-xl px-4 py-3 text-lg font-mono font-black text-white focus:outline-none" /></div>
+                                <input 
+                                  autoFocus 
+                                  type="text" 
+                                  inputMode="decimal"
+                                  value={formatDisplayAmount(inlinePriceRaw)} 
+                                  onChange={(e) => setInlinePriceRaw(e.target.value.replace(/\D/g, ""))} 
+                                  onBlur={() => updateShoppingItemPrice(item.id, inlinePriceRaw ? parseFloat(inlinePriceRaw)/100 : 0)} 
+                                  onKeyDown={(e) => { if (e.key === 'Enter') updateShoppingItemPrice(item.id, inlinePriceRaw ? parseFloat(inlinePriceRaw)/100 : 0); }} 
+                                  className="w-24 md:w-32 bg-slate-950 border-2 border-emerald-500 rounded-xl px-3 py-2.5 md:py-3 text-sm md:text-lg font-mono font-black text-white focus:outline-none shadow-[0_0_15px_rgba(16,185,129,0.2)]" 
+                                />
                               ) : (
-                                <button onClick={() => { setEditingPriceId(item.id); setInlinePriceRaw((item.estimatedPrice * 100).toString()); }} className="bg-white/5 hover:bg-white/10 p-4 px-8 rounded-2xl flex flex-col items-center justify-center transition-all min-w-[140px]">{item.estimatedPrice > 0 ? (<span className="text-xl font-mono font-black text-emerald-400">{formatCurrency(item.estimatedPrice * item.quantity)}</span>) : (<span className="text-xl font-black text-amber-500 lowercase tracking-tight">Definir valor</span>)}<span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">TOQUE PARA ADICIONAR</span></button>
+                                <button 
+                                  onClick={() => { setEditingPriceId(item.id); setInlinePriceRaw((item.estimatedPrice * 100).toString()); }} 
+                                  className={`bg-white/5 hover:bg-white/10 p-2.5 md:p-4 md:px-8 rounded-xl md:rounded-2xl flex flex-col items-center justify-center transition-all min-w-[100px] md:min-w-[140px] border border-white/5 ${item.estimatedPrice === 0 ? 'border-amber-500/30' : ''}`}
+                                >
+                                  {item.estimatedPrice > 0 ? (
+                                    <span className="text-sm md:text-xl font-mono font-black text-emerald-400 leading-none">{formatCurrency(item.estimatedPrice * item.quantity)}</span>
+                                  ) : (
+                                    <span className="text-[9px] md:text-sm font-black text-amber-500 uppercase tracking-tighter">Definir valor</span>
+                                  )}
+                                  <span className="text-[7px] md:text-[8px] font-black text-slate-600 uppercase tracking-widest mt-1 hidden sm:block">TOQUE PARA ALTERAR</span>
+                                </button>
                               )}
-                              <button onClick={() => deleteShoppingItem(item.id)} className="p-4 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-2xl transition-all active:scale-95 border border-rose-500/10"><Trash2 size={20} /></button>
+                              <button onClick={() => deleteShoppingItem(item.id)} className="p-3 md:p-4 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl md:rounded-2xl transition-all active:scale-95 border border-rose-500/20">
+                                <Trash2 size={18} />
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -886,186 +995,228 @@ export default function App() {
                 )}
 
                 {activeTab === 'investment' && (
-                  <div className="space-y-12 animate-in fade-in duration-500 max-w-7xl mx-auto">
-                    <div className="flex overflow-x-auto no-scrollbar gap-2 p-1.5 bg-[#0b1120]/80 rounded-full border border-white/5 w-fit mx-auto lg:mx-0">
-                      {[
-                        {id:'million', label:'1 MILHÃO', icon: Target}, 
-                        {id:'compound', label:'JUROS COMPOSTOS', icon: Calculator}, 
-                        {id:'income', label:'VIVER DE RENDA', icon: Coins}, 
-                        {id:'emergency', label:'RESERVA EMERGÊNCIA', icon: ShieldCheck}, 
-                        {id:'driver', label:'MOTORISTA APP', icon: Car}
-                      ].map(t => (
-                        <button key={t.id} onClick={() => { setCalcType(t.id as any); setCalcResult(null); }} className={`flex items-center gap-3 px-6 py-3.5 rounded-full font-black text-[9px] uppercase tracking-widest transition-all whitespace-nowrap ${calcType === t.id ? 'bg-emerald-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'text-slate-500 hover:text-slate-300'}`}><t.icon size={14} />{t.label}</button>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-                      <div className="bg-[#0b1120] border border-white/5 p-8 lg:p-12 rounded-[3.5rem] shadow-2xl space-y-10">
-                        <h3 className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.2em]">Configuração da Operação</h3>
+                  <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto px-2">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                      {/* Integrated Container for Sub-tabs and Inputs */}
+                      <div className="lg:col-span-6 bg-[#0b1120] border border-white/5 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl flex flex-col overflow-hidden">
                         
-                        <div className="space-y-8">
+                        {/* Integrated Menu Header */}
+                        <div className="p-4 md:p-6 border-b border-white/5 bg-slate-900/30">
+                          <div className="flex overflow-x-auto no-scrollbar gap-2 p-1 bg-slate-950/50 rounded-2xl border border-white/5">
+                            {[
+                              {id:'million', label:'1 MILHÃO', icon: Target}, 
+                              {id:'compound', label:'JUROS', icon: Calculator}, 
+                              {id:'income', label:'RENDA', icon: Coins}, 
+                              {id:'emergency', label:'RESERVA', icon: ShieldCheck}, 
+                              {id:'driver', label:'DRIVER', icon: Car}
+                            ].map(t => (
+                              <button 
+                                key={t.id} 
+                                onClick={() => { setCalcType(t.id as any); setCalcResult(null); }} 
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all whitespace-nowrap flex-1 justify-center ${calcType === t.id ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                              >
+                                <t.icon size={14} />
+                                <span className="hidden sm:inline">{t.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Redesigned Compact Inputs Content */}
+                        <div className="p-6 md:p-10 space-y-8">
                           {calcType === 'driver' ? (
                             <div className="space-y-6">
                               <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">TIPO DE VEÍCULO:</label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-3 gap-2">
                                   {['financed', 'rented', 'owned'].map(vt => (
-                                    <button key={vt} onClick={() => setDriverInputs(p => ({...p, vehicleType: vt as any}))} className={`py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest border-2 transition-all ${driverInputs.vehicleType === vt ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5' : 'border-white/5 text-slate-500'}`}>{vt === 'financed' ? 'FINANCIADO' : vt === 'rented' ? 'ALUGADO' : 'QUITADO'}</button>
+                                    <button key={vt} onClick={() => setDriverInputs(p => ({...p, vehicleType: vt as any}))} className={`py-3 rounded-xl font-black text-[8px] uppercase tracking-widest border-2 transition-all ${driverInputs.vehicleType === vt ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5' : 'border-white/5 text-slate-600'}`}>{vt === 'financed' ? 'FINANCIADO' : vt === 'rented' ? 'ALUGADO' : 'QUITADO'}</button>
                                   ))}
                                 </div>
                               </div>
                               
-                              {driverInputs.vehicleType === 'rented' && (
-                                <div className="space-y-3">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SOBRE A MANUTENÇÃO:</label>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <button onClick={() => setDriverInputs(p => ({...p, maintenanceIncluded: true}))} className={`flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest border-2 transition-all ${driverInputs.maintenanceIncluded ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5' : 'border-white/5 text-slate-500'}`}><Ban size={14}/> LOCADORA PAGA</button>
-                                    <button onClick={() => setDriverInputs(p => ({...p, maintenanceIncluded: false}))} className={`flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest border-2 transition-all ${!driverInputs.maintenanceIncluded ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5' : 'border-white/5 text-slate-500'}`}><Wrench size={14}/> EU PAGO</button>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">{driverInputs.vehicleType === 'rented' ? 'ALUGUEL' : 'VALOR CARRO'}</label>
+                                  <input type="text" inputMode="decimal" value={driverInputs.vehicleType === 'rented' ? formatDisplayAmount(driverInputs.installmentRaw) : formatDisplayAmount(driverInputs.vehicleValueRaw)} onChange={(e) => driverInputs.vehicleType === 'rented' ? handleDriverInputChange('installmentRaw', e.target.value) : handleDriverInputChange('vehicleValueRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">{driverInputs.vehicleType === 'financed' ? 'PARCELA' : 'KM MENSAL MÉDIO'}</label>
+                                  <input type="text" inputMode="decimal" value={driverInputs.vehicleType === 'financed' ? formatDisplayAmount(driverInputs.installmentRaw) : driverInputs.monthlyKmRaw} onChange={(e) => handleDriverInputChange(driverInputs.vehicleType === 'financed' ? 'installmentRaw' : 'monthlyKmRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
+                                </div>
+                              </div>
+
+                              {(driverInputs.vehicleType === 'financed' || driverInputs.vehicleType === 'owned') && (
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase ml-1">IPVA (ANUAL)</label>
+                                    <input type="text" inputMode="decimal" value={formatDisplayAmount(driverInputs.ipvaRaw)} onChange={(e) => handleDriverInputChange('ipvaRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase ml-1">SEGURO (MENSAL)</label>
+                                    <input type="text" inputMode="decimal" value={formatDisplayAmount(driverInputs.insuranceRaw)} onChange={(e) => handleDriverInputChange('insuranceRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
                                   </div>
                                 </div>
                               )}
 
                               <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-3">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1 flex items-center gap-2">
-                                    {driverInputs.vehicleType === 'financed' || driverInputs.vehicleType === 'owned' ? 'VALOR DO AUTOMÓVEL' : 'ALUGUEL'}
-                                    {(driverInputs.vehicleType === 'financed' || driverInputs.vehicleType === 'owned') && <Info size={12} className="text-slate-600" />}
-                                  </label>
-                                  <input type="text" value={driverInputs.vehicleType === 'rented' ? formatDisplayAmount(driverInputs.installmentRaw) : formatDisplayAmount(driverInputs.vehicleValueRaw)} onChange={(e) => driverInputs.vehicleType === 'rented' ? handleDriverInputChange('installmentRaw', e.target.value) : handleDriverInputChange('vehicleValueRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" />
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">LITRO COMBUST.</label>
+                                  <input type="text" inputMode="decimal" value={formatDisplayAmount(driverInputs.fuelPriceRaw)} onChange={(e) => handleDriverInputChange('fuelPriceRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
                                 </div>
-                                <div className="space-y-3">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">
-                                    {driverInputs.vehicleType === 'financed' ? 'PARCELA' : 'KM RODADOS (MÊS)'}
-                                  </label>
-                                  <input type="text" value={driverInputs.vehicleType === 'financed' ? formatDisplayAmount(driverInputs.installmentRaw) : driverInputs.monthlyKmRaw} onChange={(e) => driverInputs.vehicleType === 'financed' ? handleDriverInputChange('installmentRaw', e.target.value) : handleDriverInputChange('monthlyKmRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" />
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">CONSUMO (KM/L)</label>
+                                  <input type="text" inputMode="decimal" value={driverInputs.fuelConsumptionRaw} onChange={(e) => handleDriverInputChange('fuelConsumptionRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-3">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">
-                                    {driverInputs.vehicleType === 'financed' ? 'KM RODADOS (MÊS)' : 'PREÇO COMBUSTÍVEL'}
-                                  </label>
-                                  <input type="text" value={driverInputs.vehicleType === 'financed' ? driverInputs.monthlyKmRaw : formatDisplayAmount(driverInputs.fuelPriceRaw)} onChange={(e) => driverInputs.vehicleType === 'financed' ? handleDriverInputChange('monthlyKmRaw', e.target.value) : handleDriverInputChange('fuelPriceRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" />
-                                </div>
-                                <div className="space-y-3">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">
-                                    {driverInputs.vehicleType === 'financed' ? 'PREÇO COMBUSTÍVEL' : 'CONSUMO (KM/L)'}
-                                  </label>
-                                  <input type="text" value={driverInputs.vehicleType === 'financed' ? formatDisplayAmount(driverInputs.fuelPriceRaw) : driverInputs.fuelConsumptionRaw} onChange={(e) => driverInputs.vehicleType === 'financed' ? handleDriverInputChange('fuelPriceRaw', e.target.value) : handleDriverInputChange('fuelConsumptionRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" />
-                                </div>
-                              </div>
+                              {(driverInputs.vehicleType === 'financed' || driverInputs.vehicleType === 'owned' || !driverInputs.maintenanceIncluded) && (
+                                <>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase ml-1">TROCA ÓLEO (A CADA 10 MIL KM)</label>
+                                      <input type="text" inputMode="decimal" value={formatDisplayAmount(driverInputs.oilCostRaw)} onChange={(e) => handleDriverInputChange('oilCostRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
+                                    </div>
+                                    {driverInputs.vehicleType === 'financed' && (
+                                      <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1">KM MENSAL MÉDIO</label>
+                                        <input type="text" inputMode="decimal" value={driverInputs.monthlyKmRaw} onChange={(e) => handleDriverInputChange('monthlyKmRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase ml-1">VALOR JOGO PNEUS (1 ANO)</label>
+                                    <input type="text" inputMode="decimal" value={formatDisplayAmount(driverInputs.tireCostRaw)} onChange={(e) => handleDriverInputChange('tireCostRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none transition-all" />
+                                  </div>
+                                </>
+                              )}
 
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-3">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">
-                                    {driverInputs.vehicleType === 'financed' ? 'CONSUMO (KM/L)' : 'KIT PNEUS'}
-                                  </label>
-                                  <input type="text" value={driverInputs.vehicleType === 'financed' ? driverInputs.fuelConsumptionRaw : formatDisplayAmount(driverInputs.tireCostRaw)} onChange={(e) => driverInputs.vehicleType === 'financed' ? handleDriverInputChange('fuelConsumptionRaw', e.target.value) : handleDriverInputChange('tireCostRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" />
-                                </div>
-                                <div className="space-y-3">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">
-                                    {driverInputs.vehicleType === 'financed' ? 'KIT PNEUS' : 'TROCA ÓLEO'}
-                                  </label>
-                                  <input type="text" value={driverInputs.vehicleType === 'financed' ? formatDisplayAmount(driverInputs.tireCostRaw) : formatDisplayAmount(driverInputs.oilCostRaw)} onChange={(e) => driverInputs.vehicleType === 'financed' ? handleDriverInputChange('tireCostRaw', e.target.value) : handleDriverInputChange('oilCostRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" />
-                                </div>
-                              </div>
-
-                              <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-500 uppercase ml-1">LUCRO DESEJADO</label>
-                                <input type="text" value={formatDisplayAmount(driverInputs.desiredProfitRaw)} onChange={(e) => handleDriverInputChange('desiredProfitRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-xl text-emerald-400 font-mono font-black focus:border-emerald-500/50 outline-none" />
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">LUCRO DESEJADO (MÊS)</label>
+                                <input type="text" inputMode="decimal" value={formatDisplayAmount(driverInputs.desiredProfitRaw)} onChange={(e) => handleDriverInputChange('desiredProfitRaw', e.target.value)} className="w-full bg-emerald-500/5 border border-emerald-500/10 rounded-2xl px-6 py-5 text-2xl text-emerald-400 font-mono font-black focus:border-emerald-500/40 outline-none text-center" />
                               </div>
                             </div>
                           ) : (
-                            <div className="space-y-8">
-                              <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">INÍCIO</label><div className="relative"><input type="date" value={calcInputs.startDate} onChange={(e) => handleCalcInputChange('startDate', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-black [color-scheme:dark] focus:border-emerald-500/50 outline-none" /><CalendarDays className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={20} /></div></div>
-                              <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{calcType === 'emergency' ? 'VALOR GUARDADO' : 'VALOR INICIAL'}</label><input type="text" value={formatDisplayAmount(calcInputs.initialRaw)} onChange={(e) => handleCalcInputChange('initialRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" /></div>
+                            <div className="space-y-5">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">DATA INÍCIO</label>
+                                  <div className="relative">
+                                    <input type="date" value={calcInputs.startDate} onChange={(e) => handleCalcInputChange('startDate', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-black [color-scheme:dark] focus:border-emerald-500/30 outline-none" />
+                                    <CalendarDays className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" size={16} />
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{calcType === 'emergency' ? 'RESERVA ATUAL' : 'VALOR INICIAL'}</label>
+                                  <input type="text" inputMode="decimal" value={formatDisplayAmount(calcInputs.initialRaw)} onChange={(e) => handleCalcInputChange('initialRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none" />
+                                </div>
+                              </div>
 
                               {calcType === 'million' && (
-                                <div className="grid grid-cols-2 gap-4">
-                                  <button onClick={() => setCalcInputs(p => ({...p, millionMode: 'term'}))} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${calcInputs.millionMode === 'term' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>Calcular Prazo</button>
-                                  <button onClick={() => setCalcInputs(p => ({...p, millionMode: 'amount'}))} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${calcInputs.millionMode === 'amount' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>Calcular Aporte</button>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <button onClick={() => setCalcInputs(p => ({...p, millionMode: 'term'}))} className={`py-3 rounded-xl font-black text-[9px] uppercase tracking-widest border-2 transition-all ${calcInputs.millionMode === 'term' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10 text-emerald-500 shadow-md shadow-emerald-500/20' : 'border-white/5 text-slate-600'}`}>Calcular Prazo</button>
+                                  <button onClick={() => setCalcInputs(p => ({...p, millionMode: 'amount'}))} className={`py-3 rounded-xl font-black text-[9px] uppercase tracking-widest border-2 transition-all ${calcInputs.millionMode === 'amount' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10 text-emerald-500 shadow-md shadow-emerald-500/20' : 'border-white/5 text-slate-600'}`}>Calcular Aporte</button>
                                 </div>
                               )}
 
                               {calcType === 'emergency' && (
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-3 gap-2">
                                   {['clt', 'autonomo', 'publico'].map(et => (
-                                    <button key={et} onClick={() => setCalcInputs(p => ({...p, employmentType: et, coverageMonths: et === 'clt' ? 6 : et === 'autonomo' ? 12 : 3}))} className={`py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest border-2 transition-all ${calcInputs.employmentType === et ? 'border-emerald-500 text-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>{et === 'clt' ? 'CLT' : et === 'autonomo' ? 'AUTÔNOMO' : 'PÚBLICO'}</button>
+                                    <button key={et} onClick={() => setCalcInputs(p => ({...p, employmentType: et, coverageMonths: et === 'clt' ? 6 : et === 'autonomo' ? 12 : 3}))} className={`py-3 rounded-xl font-black text-[8px] uppercase tracking-widest border-2 transition-all ${calcInputs.employmentType === et ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10 text-emerald-500 shadow-md shadow-emerald-500/20' : 'border-white/5 text-slate-600'}`}>{et === 'clt' ? 'CLT' : et === 'autonomo' ? 'AUTÔNOMO' : 'PÚBLICO'}</button>
                                   ))}
                                 </div>
                               )}
 
                               {(calcType === 'compound' || calcType === 'million' || calcType === 'emergency') && (
-                                <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{calcType === 'emergency' ? 'APORTE MENSAL' : 'APORTE'}</label><input type="text" value={formatDisplayAmount(calcInputs.monthlyRaw)} onChange={(e) => handleCalcInputChange('monthlyRaw', e.target.value)} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono font-black focus:border-emerald-500/50 outline-none" /></div>
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{calcType === 'emergency' ? 'CUSTO MENSAL' : 'APORTE MENSAL'}</label>
+                                  <input type="text" inputMode="decimal" value={calcType === 'emergency' ? formatDisplayAmount(calcInputs.monthlyCostRaw) : formatDisplayAmount(calcInputs.monthlyRaw)} onChange={(e) => handleCalcInputChange(calcType === 'emergency' ? 'monthlyCostRaw' : 'monthlyRaw', e.target.value)} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-mono font-black focus:border-emerald-500/30 outline-none" />
+                                </div>
                               )}
 
-                              <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">JUROS (%)</label><input type="number" value={calcInputs.rate} onChange={(e) => setCalcInputs(p => ({...p, rate: parseFloat(e.target.value)}))} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-black focus:border-emerald-500/50 outline-none" /></div>
-                                <div className="space-y-3"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">PERÍODO</label><select value={calcInputs.rateType} onChange={(e) => setCalcInputs(p => ({...p, rateType: e.target.value}))} className="w-full bg-[#020617]/40 border border-white/10 rounded-2xl px-6 py-5 text-white font-black appearance-none focus:border-emerald-500/50 outline-none"><option value="annual">Anual</option><option value="monthly">Mensal</option></select></div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">JUROS (%)</label>
+                                  <input type="number" inputMode="decimal" value={calcInputs.rate} onChange={(e) => setCalcInputs(p => ({...p, rate: parseFloat(e.target.value)}))} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-black focus:border-emerald-500/30 outline-none" />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">TAXA</label>
+                                  <select value={calcInputs.rateType} onChange={(e) => setCalcInputs(p => ({...p, rateType: e.target.value}))} className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3.5 text-white font-black appearance-none focus:border-emerald-500/30 outline-none"><option value="annual">Anual</option><option value="monthly">Mensal</option></select>
+                                </div>
                               </div>
                             </div>
                           )}
-                        </div>
 
-                        <button onClick={calculateInvestments} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-6 rounded-3xl uppercase text-xs tracking-[0.2em] shadow-[0_15px_30px_rgba(16,185,129,0.2)] active:scale-[0.98] transition-all">Calcular Resultado</button>
+                          <button onClick={calculateInvestments} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-2xl uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-emerald-500/10 active:scale-[0.97] transition-all">Simular Agora</button>
+                        </div>
                       </div>
                       
-                      <div className="bg-[#0b1120]/40 border border-white/5 rounded-[3.5rem] shadow-xl min-h-[500px] flex flex-col items-center justify-center text-center p-12 overflow-hidden">
+                      {/* Results Box */}
+                      <div className="lg:col-span-6 bg-[#0b1120]/40 border border-white/5 rounded-[2.5rem] md:rounded-[3.5rem] shadow-xl min-h-[500px] flex flex-col items-center justify-center text-center p-8 md:p-12 overflow-hidden relative">
                         {calcResult ? (
-                          <div className="space-y-10 w-full animate-in fade-in zoom-in duration-500">
-                            <div className="space-y-8">
-                              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em]">Previsão de Resultados</span>
+                          <div className="space-y-8 w-full animate-in fade-in zoom-in duration-500 z-10">
+                            <div className="space-y-6">
+                              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em]">Projeção Financeira</span>
                               
                               {(calcType === 'million' || calcType === 'emergency') ? (
-                                <div className="bg-emerald-500/5 border border-emerald-500/20 p-10 rounded-[3rem] shadow-inner space-y-3">
-                                  <h3 className="text-4xl lg:text-5xl font-black text-white tracking-tighter capitalize">{calcResult.targetDate}</h3>
-                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                    {calcType === 'million' ? `Tempo: ${calcResult.years}A e ${calcResult.months}M` : `Alvo: ${formatCurrency(calcResult.target || 0)}`}
-                                  </p>
+                                <div className="bg-emerald-500/10 border border-emerald-500/20 p-8 md:p-12 rounded-[2.5rem] shadow-inner space-y-4">
+                                  <h3 className="text-3xl md:text-5xl font-black text-white tracking-tighter capitalize leading-none">{calcResult.targetDate}</h3>
+                                  <div className="flex items-center justify-center gap-4 pt-2">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-900/60 px-4 py-1.5 rounded-full border border-white/5">
+                                      {calcType === 'million' ? `${calcResult.years}A e ${calcResult.months}M` : `Meta: ${formatCurrency(calcResult.target || 0)}`}
+                                    </span>
+                                  </div>
                                 </div>
                               ) : calcType === 'driver' ? (
-                                <div className="bg-emerald-500/5 border border-emerald-500/20 p-10 rounded-[3rem] shadow-inner space-y-4">
-                                  <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest max-w-xs mx-auto leading-relaxed">
-                                    Para um lucro de {formatCurrency(driverInputs.desiredProfitRaw)}, rodando {driverInputs.monthlyKmRaw} km, aceite viagens de no mínimo
+                                <div className="bg-emerald-500/10 border border-emerald-500/20 p-8 md:p-12 rounded-[2.5rem] shadow-inner space-y-6">
+                                  <p className="text-[10px] font-black text-emerald-500/80 uppercase tracking-widest max-w-[200px] mx-auto leading-relaxed">
+                                    TAXA MÍNIMA POR KM PARA O LUCRO DESEJADO
                                   </p>
-                                  <h3 className="text-3xl lg:text-4xl font-black text-emerald-400 tracking-tighter">R$ {calcResult.minRatePerKm?.toFixed(2)} / KM</h3>
+                                  <h3 className="text-3xl md:text-5xl font-black text-white tracking-tighter leading-none">R$ {calcResult.minRatePerKm?.toFixed(2)}</h3>
                                 </div>
                               ) : (
                                 <div className="space-y-2">
-                                  <h3 className="text-5xl lg:text-6xl font-black text-white tracking-tighter">{formatCurrency(calcResult.total || 0)}</h3>
-                                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Montante Final</span>
+                                  <h3 className="text-5xl md:text-7xl font-black text-white tracking-tighter leading-none">{formatCurrency(calcResult.total || 0)}</h3>
+                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mt-4">Montante Estimado</span>
                                 </div>
                               )}
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6 w-full">
-                              <div className="bg-[#020617]/40 p-6 rounded-[2.5rem] border border-white/5">
-                                <span className="text-[8px] font-black text-slate-500 uppercase block mb-2">{calcType === 'driver' ? 'CUSTO POR KM' : 'INVESTIDO'}</span>
-                                <span className="text-sm lg:text-base font-black text-white truncate block">
+                            <div className="grid grid-cols-2 gap-4 w-full">
+                              <div className="bg-slate-900/60 p-5 md:p-7 rounded-[2rem] border border-white/5 flex flex-col justify-center transition-all hover:bg-slate-900/80">
+                                <span className="text-[8px] font-black text-slate-500 uppercase block mb-2">{calcType === 'driver' ? 'CUSTO POR KM' : 'VALOR INVESTIDO'}</span>
+                                <span className="text-xs md:text-lg font-black text-white truncate block">
                                   {calcType === 'driver' ? `R$ ${calcResult.costPerKm?.toFixed(2)}` : formatCurrency(calcResult.invested || 0)}
                                 </span>
                               </div>
-                              <div className="bg-[#020617]/40 p-6 rounded-[2.5rem] border border-white/5">
-                                <span className="text-[8px] font-black text-emerald-500 uppercase block mb-2">{calcType === 'driver' ? 'CUSTO MENSAL' : 'RENDIMENTO'}</span>
-                                <span className="text-sm lg:text-base font-black text-emerald-400 truncate block">
+                              <div className="bg-slate-900/60 p-5 md:p-7 rounded-[2rem] border border-white/5 flex flex-col justify-center transition-all hover:bg-slate-900/80">
+                                <span className="text-[8px] font-black text-emerald-500 uppercase block mb-2">{calcType === 'driver' ? 'CUSTO MENSAL' : 'RENDIMENTO TOTAL'}</span>
+                                <span className="text-xs md:text-lg font-black text-emerald-400 truncate block">
                                   {calcType === 'driver' ? formatCurrency(calcResult.monthlyCost || 0) : formatCurrency(calcResult.interest || 0)}
                                 </span>
                               </div>
                             </div>
 
                             {calcResult.timeline && (
-                              <div className="pt-6 w-full animate-in slide-in-from-bottom duration-700">
-                                <BarChart data={calcResult.timeline} height={120} />
+                              <div className="pt-4 w-full">
+                                <BarChart data={calcResult.timeline} height={100} />
                               </div>
                             )}
                           </div>
                         ) : (
-                          <div className="space-y-6 opacity-40">
-                            <TrendingUp size={48} strokeWidth={1.5} className="mx-auto text-slate-400" />
-                            <p className="text-slate-500 font-black uppercase text-[10px] tracking-[0.3em]">Aguardando parâmetros...</p>
+                          <div className="space-y-8 animate-pulse text-center">
+                            <div className="w-24 h-24 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center mx-auto shadow-2xl">
+                                <Calculator size={32} className="text-slate-800" />
+                            </div>
+                            <div className="space-y-2">
+                                <p className="text-slate-200 font-black uppercase text-[11px] tracking-[0.4em]">SIMULADOR FINANCEIRO</p>
+                                <p className="text-slate-600 font-bold uppercase text-[8px] tracking-[0.2em] max-w-[200px] mx-auto leading-relaxed">INSIRA OS PARÂMETROS À ESQUERDA PARA VISUALIZAR A PROJEÇÃO</p>
+                            </div>
                           </div>
                         )}
+                        
+                        {/* Decorative background element */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,_rgba(16,185,129,0.03)_0%,_transparent_70%)] pointer-events-none" />
                       </div>
                     </div>
                   </div>
@@ -1077,8 +1228,33 @@ export default function App() {
                         <div className="divide-y divide-white/5">
                             {(activeTab === 'fixed' ? fixedTransactions : monthlyTransactions).map((t) => (
                                 <div key={t.id} className="p-4 md:p-6 flex items-center justify-between group hover:bg-white/[0.02] transition-all gap-4">
-                                    <div className="flex items-center gap-3 md:gap-6 overflow-hidden"><div className={`p-2.5 md:p-4 rounded-xl md:rounded-[1.25rem] flex-shrink-0 ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{t.isFixed ? <Repeat size={18} /> : t.type === 'income' ? <ArrowUpCircle size={18} /> : <ArrowDownCircle size={18} />}</div><div className="overflow-hidden"><div className="flex items-center gap-2 overflow-hidden"><p className="font-black text-slate-100 text-sm md:text-xl leading-tight truncate">{t.description}</p></div><div className="flex flex-wrap gap-2 text-[7px] md:text-[10px] font-black uppercase mt-1 text-slate-500"><span>{t.category}</span>{!t.isFixed && t.date && <span className="opacity-60">{new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}</div></div></div>
-                                    <div className="flex items-center gap-3 md:gap-8 flex-shrink-0"><span className={`text-xs md:text-xl font-mono font-black ${t.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.type === 'income' ? '+' : '-'} {formatCurrency(t.amount)}</span><button onClick={() => setTransactionToDelete(t.id)} className="p-2.5 md:p-4 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl md:rounded-2xl transition-all active:scale-90 flex-shrink-0"><Trash2 size={16} /></button></div>
+                                    <div className="flex items-center gap-3 md:gap-6 overflow-hidden">
+                                      <div className={`p-2.5 md:p-4 rounded-xl md:rounded-[1.25rem] flex-shrink-0 ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                                        {t.isFixed ? <Repeat size={18} /> : t.type === 'income' ? <ArrowUpCircle size={18} /> : <ArrowDownCircle size={18} />}
+                                      </div>
+                                      <div className="overflow-hidden">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                          <p className="font-black text-slate-100 text-sm md:text-xl leading-tight truncate">{t.description}</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 text-[7px] md:text-[10px] font-black uppercase mt-1 text-slate-500">
+                                          <span>{t.category}</span>
+                                          {!t.isFixed && t.date && <span className="opacity-60">{new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 md:gap-6 flex-shrink-0">
+                                      <span className={`text-xs md:text-xl font-mono font-black ${t.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {t.type === 'income' ? '+' : '-'} {formatCurrency(t.amount)}
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <button onClick={() => handleOpenEditModal(t)} className="p-2.5 md:p-4 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white rounded-xl md:rounded-2xl transition-all active:scale-90 flex-shrink-0">
+                                          <Edit3 size={16} />
+                                        </button>
+                                        <button onClick={() => setTransactionToDelete(t.id)} className="p-2.5 md:p-4 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl md:rounded-2xl transition-all active:scale-90 flex-shrink-0">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -1109,36 +1285,40 @@ export default function App() {
             <div className="bg-slate-900 border-t md:border border-white/10 w-full max-w-lg rounded-t-[2.5rem] md:rounded-[3rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                 <div className="p-6 md:p-10 border-b border-white/5 flex justify-between items-center sticky top-0 bg-slate-900 z-10">
                     <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">
-                      {isModalOpen ? 'Novo Lançamento' : isGoalModalOpen ? 'Nova Meta' : isDriverModalOpen ? 'Nova Sessão' : isShoppingModalOpen ? 'Novo Item' : 'Novo Aporte'}
+                      {isModalOpen ? (editingTransaction ? 'Editar Lançamento' : 'Novo Lançamento') : isGoalModalOpen ? 'Nova Meta' : isDriverModalOpen ? 'Nova Sessão' : isShoppingModalOpen ? 'Novo Item' : 'Novo Aporte'}
                     </h3>
-                    <button onClick={() => { setIsModalOpen(false); setIsGoalModalOpen(false); setIsDriverModalOpen(false); setIsShoppingModalOpen(false); setIsContributionModalOpen(false); }} className="bg-slate-800 p-2.5 rounded-full text-slate-400 hover:text-white transition-colors"><X size={20} /></button>
+                    <button onClick={() => { setIsModalOpen(false); setIsGoalModalOpen(false); setIsDriverModalOpen(false); setIsShoppingModalOpen(false); setIsContributionModalOpen(false); setEditingTransaction(null); }} className="bg-slate-800 p-2.5 rounded-full text-slate-400 hover:text-white transition-colors"><X size={20} /></button>
                 </div>
                 <div className="p-6 md:p-10 space-y-6 md:space-y-8 overflow-y-auto pb-12">
                     {isModalOpen && (
                         <form onSubmit={handleAddTransaction} className="space-y-6">
-                            <div className="space-y-2 mb-6">
-                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">TIPO DE REGISTRO</label>
-                              <div className="grid grid-cols-2 gap-3">
-                                <button type="button" onClick={() => setIsFixedForm(false)} className={`py-4 rounded-2xl border-2 font-black uppercase text-[9px] transition-all ${!isFixedForm ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>Lançamento Avulso</button>
-                                <button type="button" onClick={() => setIsFixedForm(true)} className={`py-4 rounded-2xl border-2 font-black uppercase text-[9px] transition-all ${isFixedForm ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>Conta Mensal Fixa</button>
+                            {!editingTransaction && (
+                              <div className="space-y-2 mb-6">
+                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">TIPO DE REGISTRO</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <button type="button" onClick={() => setIsFixedForm(false)} className={`py-4 rounded-2xl border-2 font-black uppercase text-[9px] transition-all ${!isFixedForm ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>Lançamento Avulso</button>
+                                  <button type="button" onClick={() => setIsFixedForm(true)} className={`py-4 rounded-2xl border-2 font-black uppercase text-[9px] transition-all ${isFixedForm ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-slate-800 text-slate-500'}`}>Conta Mensal Fixa</button>
+                                </div>
                               </div>
-                            </div>
+                            )}
 
-                            <div className="grid grid-cols-2 gap-3 mb-4"><label className="cursor-pointer group"><input type="radio" name="type" value="expense" checked={formType === 'expense'} onChange={() => setFormType('expense')} className="peer sr-only" /><div className="text-center py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black peer-checked:border-rose-500 peer-checked:text-rose-500 transition-all uppercase text-[9px]">Saída</div></label><label className="cursor-pointer group"><input type="radio" name="type" value="income" checked={formType === 'income'} onChange={() => setFormType('income')} className="peer sr-only" /><div className="text-center py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black peer-checked:border-emerald-500 peer-checked:text-emerald-500 transition-all uppercase text-[9px]">Entrada</div></label></div>
-                            <div className="space-y-2"><label className="text-[9px] font-black text-slate-500 uppercase">Descrição</label><input name="description" required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black focus:outline-none" /></div>
+                            <div className="grid grid-cols-2 gap-3 mb-4"><label className="cursor-pointer group"><input type="radio" name="type" value="expense" checked={formType === 'expense'} onChange={() => setFormType('expense')} className="peer sr-only" /><div className="text-center py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black peer-checked:border-rose-500 peer-checked:text-rose-500 transition-all uppercase text-[9px]">Saída</div></label><label className="cursor-pointer group"><input type="radio" name="type" value="income" checked={formType === 'income'} onChange={() => setAuthError(null); setFormType('income');} className="peer sr-only" /><div className="text-center py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black peer-checked:border-emerald-500 peer-checked:text-emerald-500 transition-all uppercase text-[9px]">Entrada</div></label></div>
+                            <div className="space-y-2"><label className="text-[9px] font-black text-slate-500 uppercase">Descrição</label><input name="description" required defaultValue={editingTransaction?.description || ''} className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black focus:outline-none" /></div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                              <div className="space-y-2 flex-1"><label className="text-[9px] font-black text-slate-500 uppercase">Valor</label><input type="text" value={formatDisplayAmount(amountRaw)} onChange={handleAmountChange} required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-mono font-black focus:outline-none" /></div>
+                              <div className="space-y-2 flex-1"><label className="text-[9px] font-black text-slate-500 uppercase">Valor</label><input type="text" inputMode="decimal" value={formatDisplayAmount(amountRaw)} onChange={handleAmountChange} required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-mono font-black focus:outline-none" /></div>
                               {!isFixedForm && (
-                                <div className="space-y-2 flex-1"><label className="text-[9px] font-black text-slate-500 uppercase">Método de Pagamento</label><select name="payment_method" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black appearance-none focus:outline-none"><option value="Pix">Pix</option><option value="Transferência">Transferência</option><option value="Dinheiro">Dinheiro</option><option value="Débito">Débito</option><option value="Crédito">Crédito</option></select></div>
+                                <div className="space-y-2 flex-1"><label className="text-[9px] font-black text-slate-500 uppercase">Método de Pagamento</label><select name="payment_method" defaultValue={editingTransaction?.payment_method || 'Pix'} className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black appearance-none focus:outline-none"><option value="Pix">Pix</option><option value="Transferência">Transferência</option><option value="Dinheiro">Dinheiro</option><option value="Débito">Débito</option><option value="Crédito">Crédito</option></select></div>
                               )}
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                              {!isFixedForm && <div className="space-y-2"><label className="text-[9px] font-black text-slate-500 uppercase">Data</label><input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black focus:outline-none [color-scheme:dark]" /></div>}
-                              <div className="space-y-2 flex-1"><label className="text-[9px] font-black text-slate-500 uppercase">Categoria</label><select name="category" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black appearance-none focus:outline-none">{formType === 'expense' ? (<><option value="Moradia">Moradia</option><option value="Alimentação">Alimentação</option><option value="Carro">Carro</option><option value="Financiamento">Financiamento</option><option value="Assinaturas">Assinaturas</option><option value="Lazer">Lazer</option><option value="Investimento">Investimento</option><option value="Transporte">Transporte</option><option value="Saúde">Saúde</option><option value="Educação">Educação</option><option value="Outros">Outros</option></>) : (<><option value="Salário">Salário</option><option value="Extra">Extra</option><option value="Dividendos">Dividendos</option><option value="Aluguéis">Aluguéis</option><option value="Investimentos">Investimentos</option><option value="Transferências">Transferências</option><option value="Outros">Outros</option></>)}</select></div>
+                              {!isFixedForm && <div className="space-y-2"><label className="text-[9px] font-black text-slate-500 uppercase">Data</label><input name="date" type="date" defaultValue={editingTransaction?.date || new Date().toISOString().split('T')[0]} required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black focus:outline-none [color-scheme:dark]" /></div>}
+                              <div className="space-y-2 flex-1"><label className="text-[9px] font-black text-slate-500 uppercase">Categoria</label><select name="category" defaultValue={editingTransaction?.category || (formType === 'expense' ? 'Moradia' : 'Salário')} className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black appearance-none focus:outline-none">{formType === 'expense' ? (<><option value="Moradia">Moradia</option><option value="Alimentação">Alimentação</option><option value="Carro">Carro</option><option value="Financiamento">Financiamento</option><option value="Assinaturas">Assinaturas</option><option value="Lazer">Lazer</option><option value="Investimento">Investimento</option><option value="Transporte">Transporte</option><option value="Saúde">Saúde</option><option value="Educação">Educação</option><option value="Outros">Outros</option></>) : (<><option value="Salário">Salário</option><option value="Extra">Extra</option><option value="Dividendos">Dividendos</option><option value="Aluguéis">Aluguéis</option><option value="Investimentos">Investimentos</option><option value="Transferências">Transferências</option><option value="Outros">Outros</option></>)}</select></div>
                             </div>
-                            <button type="submit" className={`w-full font-black py-5 rounded-2xl active:scale-95 text-white transition-all text-sm uppercase ${formType === 'income' ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-rose-500 hover:bg-rose-400'}`}>Guardar</button>
+                            <button type="submit" className={`w-full font-black py-5 rounded-2xl active:scale-95 text-white transition-all text-sm uppercase ${formType === 'income' ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-rose-500 hover:bg-rose-400'}`}>
+                              {editingTransaction ? 'Atualizar' : 'Guardar'}
+                            </button>
                         </form>
                     )}
                     
@@ -1150,7 +1330,7 @@ export default function App() {
                         </div>
                         <div className="space-y-2"><label className="text-[9px] font-black text-slate-500 uppercase">Descrição da Meta</label><input name="description" required placeholder="Ex: Novo Carro" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black focus:outline-none" /></div>
                         {goalType === 'financial' && (
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-500 uppercase">Valor Alvo</label><input type="text" value={formatDisplayAmount(amountRaw)} onChange={handleAmountChange} required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-mono font-black focus:outline-none" /></div>
+                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-500 uppercase">Valor Alvo</label><input type="text" inputMode="decimal" value={formatDisplayAmount(amountRaw)} onChange={handleAmountChange} required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-mono font-black focus:outline-none" /></div>
                         )}
                         <div className="space-y-2"><label className="text-[9px] font-black text-slate-500 uppercase">Data Limite (Opcional)</label><input name="deadline" type="date" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black focus:outline-none [color-scheme:dark]" /></div>
                         <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-2xl transition-all text-sm uppercase">Criar Meta</button>
@@ -1160,9 +1340,9 @@ export default function App() {
                     {isDriverModalOpen && (
                       <form onSubmit={handleAddDriverSession} className="space-y-5">
                         <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Data</label><input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-white [color-scheme:dark]" /></div><div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">App</label><select name="app" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-white appearance-none"><option value="Uber">Uber</option><option value="99">99</option><option value="InDrive">InDrive</option><option value="Particular">Particular</option></select></div></div>
-                        <div className="space-y-2"><label className="text-[10px] font-black text-emerald-500 uppercase">Ganhos</label><input type="text" value={formatDisplayAmount(amountRaw)} onChange={handleAmountChange} placeholder="R$ 0,00" required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-xl text-emerald-400 font-mono font-black" /></div>
-                        <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-[10px] font-black text-rose-500 uppercase">Combustível</label><input type="text" value={formatDisplayAmount(fuelRaw)} onChange={(e) => setFuelRaw(e.target.value.replace(/\D/g, ""))} placeholder="R$ 0,00" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-rose-400 font-mono" /></div><div className="space-y-2"><label className="text-[10px] font-black text-amber-500 uppercase">Comida</label><input type="text" value={formatDisplayAmount(foodRaw)} onChange={(e) => setFoodRaw(e.target.value.replace(/\D/g, ""))} placeholder="R$ 0,00" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-amber-400 font-mono" /></div></div>
-                        <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Km</label><input type="number" step="0.01" value={kmRaw} onChange={(e) => setKmRaw(e.target.value)} required placeholder="0.00" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-white" /></div><div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Viagens</label><input type="number" value={tripsRaw} onChange={(e) => setTripsRaw(e.target.value)} required placeholder="10" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-white" /></div></div>
+                        <div className="space-y-2"><label className="text-[10px] font-black text-emerald-500 uppercase">Ganhos</label><input type="text" inputMode="decimal" value={formatDisplayAmount(amountRaw)} onChange={handleAmountChange} placeholder="R$ 0,00" required className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-xl text-emerald-400 font-mono font-black" /></div>
+                        <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-[10px] font-black text-rose-500 uppercase">Combustível</label><input type="text" inputMode="decimal" value={formatDisplayAmount(fuelRaw)} onChange={(e) => setFuelRaw(e.target.value.replace(/\D/g, ""))} placeholder="R$ 0,00" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-rose-400 font-mono" /></div><div className="space-y-2"><label className="text-[10px] font-black text-amber-500 uppercase">Comida</label><input type="text" inputMode="decimal" value={formatDisplayAmount(foodRaw)} onChange={(e) => setFoodRaw(e.target.value.replace(/\D/g, ""))} placeholder="R$ 0,00" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-amber-400 font-mono" /></div></div>
+                        <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Km</label><input type="number" step="0.01" inputMode="decimal" value={kmRaw} onChange={(e) => setKmRaw(e.target.value)} required placeholder="0.00" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-white" /></div><div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Viagens</label><input type="number" inputMode="numeric" value={tripsRaw} onChange={(e) => setTripsRaw(e.target.value)} required placeholder="10" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-3 text-white" /></div></div>
                         <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-xl transition-all text-sm uppercase">Salvar Sessão</button>
                       </form>
                     )}
@@ -1171,10 +1351,10 @@ export default function App() {
                       <form onSubmit={handleAddShoppingItem} className="space-y-6">
                         <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Item</label><input name="name" required placeholder="Ex: Arroz 5kg" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-black focus:outline-none" /></div>
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Qtd</label><input name="quantity" type="number" step="0.1" defaultValue="1" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white" /></div>
+                          <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Qtd</label><input name="quantity" type="number" step="0.1" inputMode="decimal" defaultValue="1" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white" /></div>
                           <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Un</label><select name="unit" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-4 py-4 text-white"><option value="UN">UN</option><option value="KG">KG</option><option value="L">L</option></select></div>
                         </div>
-                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Preço Unitário Estimado</label><input type="text" value={formatDisplayAmount(amountRaw)} onChange={handleAmountChange} placeholder="R$ 0,00" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-mono" /></div>
+                        <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase">Preço Unitário Estimado</label><input type="text" inputMode="decimal" value={formatDisplayAmount(amountRaw)} onChange={handleAmountChange} placeholder="R$ 0,00" className="w-full bg-slate-800/50 border-2 border-slate-800 rounded-xl px-5 py-4 text-white font-mono" /></div>
                         <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-xl uppercase text-sm">Adicionar</button>
                       </form>
                     )}
@@ -1186,6 +1366,7 @@ export default function App() {
                           <label className="text-[10px] font-black text-slate-500 uppercase">{selectedGoal?.type === 'financial' ? 'Valor do Aporte' : 'Evolução Adicional (%)'}</label>
                           <input 
                             type="text" 
+                            inputMode={selectedGoal?.type === 'financial' ? 'decimal' : 'numeric'}
                             value={selectedGoal?.type === 'financial' ? formatDisplayAmount(amountRaw) : amountRaw} 
                             onChange={(e) => {
                               if (selectedGoal?.type === 'activity') {

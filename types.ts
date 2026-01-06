@@ -1,4 +1,3 @@
-
 export type TransactionType = 'income' | 'expense';
 export type GoalType = 'financial' | 'activity';
 export type DriverApp = 'Uber' | '99' | 'InDrive' | 'Particular';
@@ -73,6 +72,7 @@ export interface DriverInputs {
   depreciationPercent: string;
   monthlyKmRaw: string;
   insuranceRaw: string;
+  ipvaRaw: string;
   tireCostRaw: string;
   tireLifeRaw: string;
   oilCostRaw: string;
